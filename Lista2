@@ -1,0 +1,237 @@
+#1
+ CREATE DATABASE Hobby;
+
+ CREATE USER 'Mateusz19'@'localhost' IDENTIFIED BY '919442';
+
+GRANT SELECT, INSERT, UPDATE ON Hobby.* TO 'Mateusz19'@'localhost';
+
+#2
+	CREATE TABLE osoba 
+				(id int NOT NULL AUTO_INCREMENT,
+ 			     imię varchar(20) NOT NULL,
+			     dataUrodzenia date NOT NULL,
+			     plec char(1) NOT NULL,
+			     PRIMARY KEY (id));
+
+	# Cannot use CURDATE() in CHECK, instead we use Trigger:
+	
+	CREATE TRIGGER Over18
+	BEFORE INSERT ON osoba
+	FOR EACH ROW
+	BEGIN
+	IF NEW.dataUrodzenia > DATE_SUB(CURDATE(), INTERVAL 18 YEAR) THEN
+	SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'User not over 18!'; END IF; END
+
+	CREATE TABLE sport (id int NOT NULL AUTO_INCREMENT,
+        nazwa varchar(20) NOT NULL,
+        typ enum('indywidualny', 'drużynowy', 'mieszany') NOT NULL DEFAULT 'drużynowy',
+        lokacja varchar(20),
+        PRIMARY KEY (id));
+
+	CREATE TABLE nauka (id int NOT NULL AUTO_INCREMENT,
+                          nazwa varchar(20) NOT NULL,
+                          lokacja varchar(20),
+                          PRIMARY KEY (id));
+
+	CREATE TABLE inne (id int NOT NULL AUTO_INCREMENT,
+                          nazwa varchar(20) NOT NULL,
+                          lokacja varchar(20),
+                          towarzysze bool NOT NULL DEFAULT true,
+                          PRIMARY KEY (id));
+
+	CREATE TABLE hobby(osoba int NOT NULL,
+                          id int NOT NULL AUTO_INCREMENT,
+                          typ enum('sport', 'nauka', 'inne') NOT NULL,
+                          PRIMARY KEY (id, osoba, typ));
+
+#3 
+	CREATE TABLE zwierzak (name    VARCHAR(20),
+                            owner   VARCHAR(20),
+                            species VARCHAR(20),
+                            sex     CHAR(1),
+                            birth   DATE,
+                            death   DATE);
+	# Had to use option "--local-infile true" when turning mycli on, not secure stuff.
+	LOAD DATA LOCAL INFILE '/path/to/pet.txt'
+                          INTO TABLE zwierzak;
+
+	INSERT INTO osoba (imię, dataUrodzenia, plec)
+                          VALUES
+						  ('Harold', '1998-12-31', 'M'),
+                          ('Gwen', '2000-04-12', 'F'),
+                          ('Benny', '1975-06-01', 'M'),
+                          ('Diane', '1979-08-31', 'F');
+
+#4
+	ALTER TABLE osoba
+        ADD nazwisko varchar(50);
+
+	ALTER TABLE zwierzak
+	DROP COLUMN owner;
+
+	ALTER TABLE zwierzak
+	ADD ownerID INT;
+
+#5
+	ALTER TABLE zwierzak
+	ADD FOREIGN KEY (ownerID) REFERENCES osoba(id);
+
+	ALTER TABLE hobby
+	ADD FOREIGN KEY (osoba) REFERENCES osoba(id);
+
+#6
+	ALTER TABLE inne AUTO_INCREMENT = 7000;
+
+#7
+	# DELIMITER DOES NOT WORK IN mycli #
+	DELIMITER //		
+
+	CREATE DEFINER=`jkt44`@`localhost` PROCEDURE `RandomRecords`(IN name varchar(20), IN num INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+	CASE
+		WHEN name = 'osoba' THEN
+			WHILE i < num DO
+				INSERT INTO osoba (imię, dataUrodzenia, plec, nazwisko) VALUES (
+                ELT(FLOOR(RAND()*10 + 1), 'Jan', 'Pawel', 'Bobo', 'Marcin', 'Kamil', 'Tulipan', 'Krystyna', 'Marcjanna', 'Żaklin', 'Jessica'),
+                (NOW() - INTERVAL FLOOR(216 + RAND() * 1000) MONTH),
+                ELT(FLOOR(RAND()*2 + 1), 'M', 'F'),
+                ELT(FLOOR(RAND()*10 + 1), 'Kaczor', 'Tusk', 'Braun', 'Thun', 'Petru', 'Kolonko', 'Prokop', 'Wojtyła', 'Kabanos', 'Marchewka'));
+				SET i = i + 1;
+			END WHILE;
+		WHEN name = 'sport' THEN
+			WHILE i < num DO
+				INSERT INTO sport (nazwa, typ, lokacja) VALUES (
+                ELT(FLOOR(RAND()*5 + 1),'bieganie', 'pływanie', 'MMA', 'taniec', 'wspinanie'),
+                ELT(FLOOR(RAND()*3 + 1), 'indywidualny', 'drużynowy', 'mieszany'),
+                ELT(FLOOR(RAND()*3 + 1), 'na zewnątrz', 'wewnątrz', 'klub'));
+                SET i = i + 1;
+			END WHILE;
+		WHEN name = 'nauka' THEN
+			WHILE i < num DO
+				INSERT INTO nauka (nazwa, lokacja) VALUES (
+                ELT(FLOOR(RAND()*3 + 1), 'matematyka', 'filozofia', 'historia'),
+                ELT(FLOOR(RAND()*3 + 1), 'szkoła', 'dom', 'kościół'));
+                SET i = i + 1;
+			END WHILE;
+		WHEN name = 'inne' THEN
+			WHILE i < num DO
+				INSERT INTO inne (nazwa, lokacja, towarzysze) VALUES (
+                ELT(FLOOR(RAND()*3 + 1), 'planszówki', 'jam session', 'slam poetycki'),
+                ELT(FLOOR(RAND()*3 + 1), 'dom', 'klub', 'piwnica'),
+                (FLOOR(RAND() * 10) % 2));
+                SET i = i + 1;
+			END WHILE;
+		WHEN name = 'hobby' THEN
+			WHILE i < num DO
+				INSERT INTO hobby (osoba, typ) VALUES (
+                (FLOOR(RAND() * 1000 + 1)),
+                ELT(FLOOR(RAND()*3 + 1),'sport', 'nauka', 'inne'));
+                SET i = i + 1;
+			END WHILE;
+	END CASE;
+END //
+
+DELIMITER ;
+
+	CALL RandomRecords('osoba', 1000); #...
+
+#8
+  #Slightly cheated, 'typ' should be used on execute.
+DELIMITER //
+  CREATE DEFINER=`jkt44`@`localhost` PROCEDURE `ShowHobbys`(IN typ varchar(20), IN id INT)
+BEGIN
+	SET @sql = CONCAT('SELECT nazwa FROM ', typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+  SET @id = id;
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+END //
+
+DELIMITER ;
+  #example call (osoba 125)
+  CALL ShowHobbys('sport', 125)
+#9
+DELIMITER //
+  CREATE DEFINER=`jkt44`@`localhost` PROCEDURE `ShowUserHobbys`( IN id INT)
+BEGIN
+  SET @id = id;
+
+  SET @typ = 'sport';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+
+  SET @typ = 'nauka';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+
+  SET @typ = 'inne';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+END //
+#10
+  DELIMITER //
+  CREATE DEFINER=`jkt44`@`localhost` PROCEDURE `ShowUserHobbysAnimals`( IN id INT)
+BEGIN
+  SET @id = id;
+
+  SET @typ = 'sport';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+
+  SET @typ = 'nauka';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+
+  SET @typ = 'inne';
+  SET @sql = CONCAT('SELECT nazwa FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+
+  SET @typ = 'zwierzak';
+  SET @sql = CONCAT('SELECT species FROM ', @typ, ' ', 'AS n INNER JOIN hobby AS h ON h.id = n.id WHERE  h.osoba = ?');
+	PREPARE stmt FROM @sql;
+	EXECUTE stmt USING @id;
+	DEALLOCATE PREPARE stmt;
+END //
+DELIMITER ;
+
+#11
+  CREATE TRIGGER OnHobby
+	AFTER INSERT ON hobby
+  FOR EACH ROW
+	BEGIN
+  INSERT INTO 
+
+
+#15 Jeżeli nie mogą, to dlatego, że na jedej tabeli i jednej akcji może być tylko jeden trigger.
+
+#16
+  CREATE VIEW test AS
+  SELECT h.id, s.nazwa, COUNT(*) AS ilosc_osób
+   FROM hobby as h INNER JOIN sport AS s ON h.id = s.id
+    WHERE h.typ = 'sport' GROUP BY osoba ORDER BY h.id;
+ 
+	#In my broken database, every hobby have only one person assigned, but person are asigned to multiple hobbys.
+CREATE VIEW hobbyCount AS
+ SELECT id, typ, COUNT(*) AS ilosc_osób
+	FROM hobby GROUP BY id ORDER BY id;
+
+#17
+	CREATE VIEW personInfo AS
+	SELECT * FROM osoba AS o
+	INNER JOIN hobby AS h ON h.osoba = o.id
+	INNER JOIN sport AS s ON h.id = s.id AND h.typ = 'sport'
+	INNER JOIN nauka AS na ON h.id = na.id AND h.typ = 'nauka'
+	INNER JOIN inne AS i ON h.id = i.id AND h.typ = 'inne'
