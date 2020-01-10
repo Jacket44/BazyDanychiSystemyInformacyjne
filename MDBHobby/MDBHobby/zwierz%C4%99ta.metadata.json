@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_","ns":"MDBHobby.zwierzęta"}],"uuid":"788aa30abffb44df8b57be4ea148a2ca"}

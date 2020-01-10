@@ -1,1 +1,90 @@
 Lista z MongoDB. Wszystko robione na konsoli, linux Arch/Manjaro.
+    DO ZAPAMIĘTANIA
+    use BAZA - tworzy albo wybiera bazę
+    BAZA.dropDatabase() - usuwa bazę
+    db.createCollection(name, options) - tworzy collection (tabelę)
+    db.collection.find( {}).pretty() - wypisuje dokumenty z kolekcji, pretty() to formatowanie
+
+    
+
+1. 
+    use MDBHobby
+    db.createCollection("osoby")
+    db.createCollection("zwierzęta)
+    db.createCollection("sport")
+
+2. 
+    generowane na https://extendsclass.com/json-generator.html
+    później poniższy pokraczny skrypt bash'a
+    ls -1 *.json | while read jsonfile; do mongoimport -d MDBHobby -c sport < $jsonfile ; done
+
+3. 
+    db.zwierzęta.insert([
+        {gatunek:"pies", min_waga:3, max_waga:50, gama_ubarwienia:["bialy", "czarny", "rudy"], dł_życia:17},
+        {gatunek:"kot", min_waga:1, max_waga:15, gama_ubarwienia:["bialy", "czarny", "rudy"], dł_życia:17},
+        {gatunek:"szczur", min_waga:0, max_waga:3, gama_ubarwienia:["bialy", "czarny", "husky", "łysy"], dł_życia:17},
+        {gatunek:"krowa", min_waga:50, max_waga:500, gama_ubarwienia:["brązowa", "czaro-biała"], dł_życia:17},
+        {gatunek:"koza", min_waga:10, max_waga:100, gama_ubarwienia:["szara", "biała", "czarna"], dł_życia:17},
+        {gatunek:"delfin", min_waga:15, max_waga:100, gama_ubarwienia:"szary", dł_życia:17},
+        {gatunek:{nazwa:"małpa", rasa:["orangutan"]}, min_waga:15, max_waga:200, gama_ubarwienia: ["brązowa", "czarna", "ruda", "biała"], dł_życia:17},
+        {gatunek:"papuga", min_waga:1, max_waga:3, gama_ubarwienia:"kolorowa", dł_życia:17},
+        {gatunek:"słoń", min_waga:300, max_waga:1000, gama_ubarwienia:"szary", dł_życia:17},
+        {gatunek:"kangur", min_waga:20, max_waga:150, gama_ubarwienia:"piaskowy", dł_życia:17},
+    ]);
+
+4.
+   tak jak w 2. osoby z krajami związkowymi osobno, bo tak szybciej.
+    db.osoby.insert([
+        {imię: "Maciek", nazwisko: "Boboniak", wiek: 24, wzrost: 144, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Waszyngton"}},
+        {imię: "Michał", nazwisko: "Schabowicz", wiek: 25, wzrost: 167, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Teksas"}},
+        {imię: "Piotrek", nazwisko: "Lizaczek", wiek: 21, wzrost: 178, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Kalifornia"}},
+        {imię: "Kornel", nazwisko: "Kolczyk", wiek: 27, wzrost: 140, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Floryda"}},
+        {imię: "Paweł", nazwisko: "Lasański", wiek: 24, wzrost: 220, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Kolorado"}},
+        {imię: "Jakub", nazwisko: "Ksiądz", wiek: 24, wzrost: 200, zainteresowania: ["skoki narciarskie", "szachy"], narodowosc :{kraj: "USA", kraj_zwiazkowy: "Nowy Meksyk"}}
+    ]);
+
+
+5.
+    show collections - wszyskie kolekcje
+
+    na wszystkie niepuste nie ma chyba natywnej funkcji, więc napiałem sam, nawiązując do
+    https://stackoverflow.com/questions/59230935/mongodb-how-to-show-only-non-empty-collections
+    (może brzydkie, ale działa)
+    
+    db.getCollectionNames().forEach(function(collection) {
+    if(db[collection].count()!=0) { print(collection); } });
+
+6. 
+    db.osoby.find({"pupil.gatunek": "kot"}, {imię: 1, "pupil.imię" : 1, _id: 0}).pretty()
+
+8.
+    20 zamiast 5, bo wszystkie występują ponad 5 razy
+
+    db.osoby.aggregate([
+        { $project : { _id: 0, zainteresowania: 1 } },  // wybiera tylko konkretne pola
+        { $unwind : "$zainteresowania" }, //rozkleja tablicę na atomowe wartości
+        { $group : { _id: "$zainteresowania", count: { $sum: 1 } } }, //grupuje po ilości
+        { $match : { count : { $gt: 20 } } } //wypisuje te z count > 20
+    ]);
+
+10. 
+
+    db.osoby.insert([
+        {imię: "Maciek", nazwisko: "Boboniak", wiek: 24, wzrost: 144, zainteresowania: ["koszykówka", "hokej"], narodowość : "Polska"}
+    ]);
+
+    db.osoby.remove({zainteresowania: ["koszykówka", "hokej"]});
+
+11.
+    db.osoby.insert([
+        {imię: "Maciek", nazwisko: "Boboniak", wiek: 24, wzrost: 144, zainteresowania: ["narciarstwo", "strzelectwo"], narodowość : "Polska"}
+    ]);
+
+    db.osoby.updateMany({zainteresowania: {$all: ["narciarstwo", "strzelectwo"]}},{$set: {zainteresowania: "biatlon"}});
+
+13. 
+    db.osoby.insert([
+        {imię: "Maciek", nazwisko: "Boboniak", wiek: 24, wzrost: 144, zainteresowania: ["koszykówka", "hokej"], pupil : { gatunek : "pies", imię: "Amador"}, narodowość : "Polska"}
+    ]);
+
+    db.osoby.find({"pupil.gatunek": "pies"},{imię: 1, nazwisko: 1, narodowosc: 1, wiek: 1, _id: 0}).sort({wiek: 1}).pretty();

@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_","ns":"MDBHobby.osoby"}],"uuid":"aba61761a650458dabbe22564f0620ec"}
